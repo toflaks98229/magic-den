@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>소코반 다중 맵 에디터 (이미지 포함)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            touch-action: manipulation;
+        }
+        #canvas-container {
+            border: 1px solid #4a5568;
+            user-select: none;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        .grid-cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #2d3748;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .grid-cell:hover {
+            background-color: #4a5568;
+        }
+        .wall { background-color: #4a5568; color: #a0aec0; }
+        .floor { background-color: #1a202c; }
+        .player { background-color: #4299e1; color: #fff; border-radius: 50%; }
+        .box { background-color: #d69e2e; color: #fff; border-radius: 4px; }
+        .goal { background-color: #e53e3e; border-radius: 50%; }
+        
+        input[type="radio"]:checked + label {
+            transform: scale(1.1);
+            border-color: #4fd1c5;
+            box-shadow: 0 0 10px rgba(79, 209, 197, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-4">
+
+    <div class="w-full max-w-6xl mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="text-4xl font-bold text-cyan-400 tracking-wider">소코반 다중 맵 에디터</h1>
+            <p class="text-gray-400 mt-2">여러 개의 맵을 만들고 하나의 .txt 파일로 관리하세요.</p>
+        </header>
+
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Left Panel: Controls -->
+            <aside class="w-full md:w-80 bg-gray-800 p-6 rounded-xl shadow-2xl border border-gray-700 flex-shrink-0">
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-cyan-500 mb-3 border-b border-gray-600 pb-2">1. 맵 선택 및 관리</h2>
+                    <div class="flex items-center gap-2 mb-3">
+                        <label for="map-select" class="font-bold">편집할 맵:</label>
+                        <select id="map-select" class="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"></select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="add-map-btn" class="bg-indigo-600 hover:bg-indigo-500 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">새 맵 추가</button>
+                        <button id="delete-map-btn" class="bg-red-700 hover:bg-red-600 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">현재 맵 삭제</button>
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-cyan-500 mb-3 border-b border-gray-600 pb-2">2. 현재 맵 크기 설정</h2>
+                    <div class="flex items-center gap-2 mb-2">
+                        <label for="rows" class="w-16">세로 (Rows):</label>
+                        <input type="number" id="rows" value="15" min="5" max="50" class="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label for="cols" class="w-16">가로 (Cols):</label>
+                        <input type="number" id="cols" value="20" min="5" max="50" class="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                    </div>
+                    <button id="resize-btn" class="mt-3 w-full bg-cyan-600 hover:bg-cyan-500 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">맵 크기 변경</button>
+                </div>
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-cyan-500 mb-3 border-b border-gray-600 pb-2">3. 도구 선택</h2>
+                    <div id="palette" class="grid grid-cols-3 gap-3">
+                        <input type="radio" name="tool" value="#" id="tool-wall" class="hidden" checked>
+                        <label for="tool-wall" class="grid-cell wall !w-full !h-16 transition-transform" title="벽 (#)">#</label>
+                        <input type="radio" name="tool" value=" " id="tool-floor" class="hidden">
+                        <label for="tool-floor" class="grid-cell floor !w-full !h-16 transition-transform" title="바닥 ( )"> </label>
+                        <input type="radio" name="tool" value="@" id="tool-player" class="hidden">
+                        <label for="tool-player" class="grid-cell player !w-full !h-16 transition-transform" title="플레이어 (@)">@</label>
+                        <input type="radio" name="tool" value="$" id="tool-box" class="hidden">
+                        <label for="tool-box" class="grid-cell box !w-full !h-16 transition-transform" title="상자 ($)">$</label>
+                        <input type="radio" name="tool" value="." id="tool-goal" class="hidden">
+                        <label for="tool-goal" class="grid-cell goal !w-full !h-16 transition-transform" title="목표 지점 (.)"> </label>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-cyan-500 mb-3 border-b border-gray-600 pb-2">4. 파일 관리</h2>
+                    <div class="space-y-3">
+                        <button id="clear-btn" class="w-full bg-yellow-600 hover:bg-yellow-500 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">현재 맵 초기화</button>
+                        <input type="file" id="import-file" accept=".txt" class="hidden">
+                        <button id="import-btn" class="w-full bg-blue-600 hover:bg-blue-500 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">맵 파일 불러오기</button>
+                        <button id="export-btn" class="w-full bg-green-600 hover:bg-green-500 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">모든 맵 내보내기</button>
+                        <button id="export-image-btn" class="w-full bg-purple-600 hover:bg-purple-500 font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">현재 맵 이미지로 내보내기</button>
+                    </div>
+                    <p id="status-message" class="text-sm text-yellow-300 mt-4 h-10"></p>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Grid -->
+            <main class="flex-1 bg-gray-800 p-4 rounded-xl shadow-2xl border border-gray-700 flex items-center justify-center overflow-auto">
+                <div id="canvas-container">
+                    <canvas id="editorCanvas"></canvas>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // --- 상수 정의 ---
+        const WALL = '#', FLOOR = ' ', PLAYER = '@', PLAYER_ON_GOAL = '+', BOX = '$', BOX_ON_GOAL = '*', GOAL = '.';
+        
+        const IMAGE_PATHS = {
+            player: './Image/player_idle.png',
+            wall: './Image/wall_1.png',
+            floor: './Image/floor_1.png',
+            box: './Image/box.png',
+            box_on_goal: './Image/box_on_goal.png',
+            goal: './Image/goal.png',
+        };
+        const ELEMENT_IMAGE_MAP = {
+            [WALL]: 'wall', [FLOOR]: 'floor', [PLAYER]: 'player', [PLAYER_ON_GOAL]: 'player',
+            [BOX]: 'box', [BOX_ON_GOAL]: 'box_on_goal', [GOAL]: 'goal',
+        };
+
+        const SVG_ASSETS = {
+            [PLAYER]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><g transform="translate(0 -5)"><path d="M50 45a15 15 0 110-30 15 15 0 010 30z" fill="#63b3ed"></path><path d="M80 95S80 75 50 75 20 95 20 95z" fill="#4299e1"></path></g></svg>`,
+            [PLAYER_ON_GOAL]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><g transform="translate(0 -5)"><path d="M50 45a15 15 0 110-30 15 15 0 010 30z" fill="#90cdf4"></path><path d="M80 95S80 75 50 75 20 95 20 95z" fill="#63b3ed"></path></g></svg>`,
+            [BOX]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="boxGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d69e2e"/><stop offset="100%" stop-color="#975a16"/></linearGradient></defs><rect x="10" y="10" width="80" height="80" rx="10" fill="url(#boxGrad)"/><rect x="20" y="20" width="60" height="60" rx="5" fill="none" stroke="#fff" stroke-width="5" stroke-opacity="0.2"/></svg>`,
+            [BOX_ON_GOAL]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="boxGoalGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#48bb78"/><stop offset="100%" stop-color="#2f855a"/></linearGradient></defs><rect x="10" y="10" width="80" height="80" rx="10" fill="url(#boxGoalGrad)"/><path d="M30 50l15 15 25-25" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+            [WALL]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4a5568"/><stop offset="100%" stop-color="#2d3748"/></linearGradient></defs><rect width="100" height="100" fill="url(#wallGrad)"/><path d="M0 0h50v50H0z M50 50h50v50H50z" fill="#2d3748" fill-opacity="0.3"/></svg>`,
+            [GOAL]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="35" fill="#e53e3e" fill-opacity="0.5"/><circle cx="50" cy="50" r="20" fill="#e53e3e"/></svg>`,
+            [FLOOR]: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1a202c"/></svg>`,
+        };
+
+        // --- DOM 요소 ---
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const rowsInput = document.getElementById('rows');
+        const colsInput = document.getElementById('cols');
+        const resizeBtn = document.getElementById('resize-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
+        const importFileInput = document.getElementById('import-file');
+        const statusMessage = document.getElementById('status-message');
+        const palette = document.getElementById('palette');
+        const mapSelect = document.getElementById('map-select');
+        const addMapBtn = document.getElementById('add-map-btn');
+        const deleteMapBtn = document.getElementById('delete-map-btn');
+        const exportImageBtn = document.getElementById('export-image-btn');
+
+        // --- 상태 변수 ---
+        let mapsData = [];
+        let currentMapIndex = 0;
+        let selectedTool = '#';
+        let isMouseDown = false;
+        let preRenderedSVGs = {};
+        let isSVGRendered = false;
+        const TILE_SIZE = 30;
+        const loadedAssets = { images: {} };
+        let mapsHistory = [];
+
+        // --- 이미지 로딩 ---
+        function loadImage(key, path) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve({ key, asset: img });
+                img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
+                img.src = path;
+            });
+        }
+        async function loadAllAssets() {
+            const imagePromises = Object.entries(IMAGE_PATHS).map(([key, path]) => loadImage(key, path));
+            const imageResults = await Promise.allSettled(imagePromises);
+            imageResults.forEach(result => {
+                if (result.status === 'fulfilled') {
+                    loadedAssets.images[result.value.key] = result.value.asset;
+                } else {
+                    console.warn(result.reason);
+                }
+            });
+        }
+        
+        // --- 실행 취소(Undo) 관련 함수 ---
+        function saveState() {
+            mapsHistory[currentMapIndex].push(JSON.parse(JSON.stringify(mapsData[currentMapIndex])));
+        }
+        function undo() {
+            const currentHistory = mapsHistory[currentMapIndex];
+            if (currentHistory.length > 0) {
+                mapsData[currentMapIndex] = currentHistory.pop();
+                drawGrid();
+                statusMessage.textContent = "실행이 취소되었습니다.";
+                setTimeout(() => statusMessage.textContent = "", 2000);
+            } else {
+                statusMessage.textContent = "더 이상 되돌릴 작업이 없습니다.";
+                setTimeout(() => statusMessage.textContent = "", 2000);
+            }
+        }
+
+        // --- 맵 관리 및 렌더링 ---
+        function updateMapSelect() {
+            mapSelect.innerHTML = '';
+            mapsData.forEach((_, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `맵 ${index + 1}`;
+                mapSelect.appendChild(option);
+            });
+            mapSelect.value = currentMapIndex;
+        }
+
+        function loadMapForEditing(index) {
+            if (index < 0 || index >= mapsData.length) return;
+            currentMapIndex = index;
+            mapSelect.value = currentMapIndex;
+            drawGrid();
+        }
+
+        function drawGrid() {
+            const currentGridData = mapsData[currentMapIndex];
+            if (!currentGridData) return;
+            const numRows = currentGridData.length;
+            const numCols = numRows > 0 ? currentGridData[0].length : 0;
+            canvas.width = numCols * TILE_SIZE;
+            canvas.height = numRows * TILE_SIZE;
+            rowsInput.value = numRows;
+            colsInput.value = numCols;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let r = 0; r < numRows; r++) {
+                for (let c = 0; c < numCols; c++) {
+                    const char = currentGridData[r][c];
+                    drawElementOnGrid(FLOOR, c, r);
+                    if (char === GOAL || char === PLAYER_ON_GOAL || char === BOX_ON_GOAL) {
+                        drawElementOnGrid(GOAL, c, r);
+                    }
+                    if (char !== FLOOR) {
+                        drawElementOnGrid(char, c, r);
+                    }
+                }
+            }
+            ctx.beginPath();
+            ctx.strokeStyle = '#4A5568';
+            ctx.lineWidth = 1;
+            for (let c = 0; c <= numCols; c++) {
+                ctx.moveTo(c * TILE_SIZE, 0);
+                ctx.lineTo(c * TILE_SIZE, canvas.height);
+            }
+            for (let r = 0; r <= numRows; r++) {
+                ctx.moveTo(0, r * TILE_SIZE);
+                ctx.lineTo(canvas.width, r * TILE_SIZE);
+            }
+            ctx.stroke();
+        }
+        
+        function drawElementOnGrid(element, c, r) {
+            const imageKey = ELEMENT_IMAGE_MAP[element];
+            let imageToDraw = imageKey ? loadedAssets.images[imageKey] : null;
+            if (imageToDraw) {
+                ctx.drawImage(imageToDraw, c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            } else if (preRenderedSVGs[element]) {
+                ctx.drawImage(preRenderedSVGs[element], c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            }
+        }
+
+        function handleCellPaint(r, c) {
+            const gridData = mapsData[currentMapIndex];
+            if (r < 0 || r >= gridData.length || c < 0 || c >= gridData[0].length) return;
+            const currentCell = gridData[r][c];
+            if (selectedTool === PLAYER) {
+                gridData.forEach((row, i) => row.forEach((_, j) => {
+                    if (gridData[i][j] === PLAYER) gridData[i][j] = FLOOR;
+                    if (gridData[i][j] === PLAYER_ON_GOAL) gridData[i][j] = GOAL;
+                }));
+            }
+            switch (selectedTool) {
+                case PLAYER: gridData[r][c] = (currentCell === GOAL || currentCell === PLAYER_ON_GOAL || currentCell === BOX_ON_GOAL) ? PLAYER_ON_GOAL : PLAYER; break;
+                case BOX: gridData[r][c] = (currentCell === GOAL || currentCell === PLAYER_ON_GOAL || currentCell === BOX_ON_GOAL) ? BOX_ON_GOAL : BOX; break;
+                case GOAL:
+                    if (currentCell === PLAYER) gridData[r][c] = PLAYER_ON_GOAL;
+                    else if (currentCell === BOX) gridData[r][c] = BOX_ON_GOAL;
+                    else gridData[r][c] = GOAL;
+                    break;
+                case FLOOR: gridData[r][c] = (currentCell === PLAYER_ON_GOAL || currentCell === BOX_ON_GOAL) ? GOAL : FLOOR; break;
+                case WALL: gridData[r][c] = WALL; break;
+            }
+            drawGrid();
+        }
+
+        function addNewMap() {
+            const numRows = parseInt(rowsInput.value, 10);
+            const numCols = parseInt(colsInput.value, 10);
+            const newGridData = Array.from({ length: numRows }, () => Array(numCols).fill(FLOOR));
+            mapsData.push(newGridData);
+            mapsHistory.push([]);
+            currentMapIndex = mapsData.length - 1;
+            updateMapSelect();
+            loadMapForEditing(currentMapIndex);
+            statusMessage.textContent = `새 맵(맵 ${mapsData.length})이 추가되었습니다.`;
+        }
+
+        // --- 파일 및 유효성 검사 ---
+        function validateMap(gridData, mapNumber) {
+            const flatMap = gridData.flat();
+            const playerCount = flatMap.filter(c => c === PLAYER || c === PLAYER_ON_GOAL).length;
+            if (playerCount !== 1) return `맵 ${mapNumber} 오류: 플레이어는 1명이어야 합니다. (현재 ${playerCount}명)`;
+            const boxCount = flatMap.filter(c => c === BOX || c === BOX_ON_GOAL).length;
+            const goalCount = flatMap.filter(c => c === GOAL || c === PLAYER_ON_GOAL || c === BOX_ON_GOAL).length;
+            if (boxCount === 0 && goalCount === 0) return null;
+            if (boxCount !== goalCount) return `맵 ${mapNumber} 경고: 상자(${boxCount}개)와 목표(${goalCount}개) 개수가 다릅니다.`;
+            return null;
+        }
+
+        function exportAllMaps() {
+            const validationErrors = mapsData.map((data, i) => validateMap(data, i + 1)).filter(Boolean);
+            if (validationErrors.some(err => err.includes('오류'))) {
+                statusMessage.textContent = validationErrors.find(err => err.includes('오류'));
+                return;
+            }
+            statusMessage.textContent = validationErrors.length > 0 ? validationErrors.join(' / ') : '모든 맵 유효성 검사 통과!';
+            const allMapsString = mapsData.map((gridData, index) => {
+                const mapContent = gridData.map(row => row.join('').replace(/\s+$/, '')).join('\n');
+                return `${index + 1}\n${mapContent}`;
+            }).join('\n~\n');
+            const blob = new Blob([allMapsString], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'sokoban_maps.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setTimeout(() => statusMessage.textContent = `총 ${mapsData.length}개의 맵이 sokoban_maps.txt로 저장되었습니다.`, 500);
+        }
+
+        function importMaps(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                const mapBlocks = content.split('~');
+                if (mapBlocks.length === 0) {
+                    statusMessage.textContent = "오류: 파일에 유효한 맵 데이터가 없습니다."; return;
+                }
+                mapsData = [];
+                mapsHistory = [];
+                mapBlocks.forEach(block => {
+                    if (block.trim().length === 0) return;
+                    const lines = block.split('\n').filter(line => line.trim().length > 0 && !/^\d+$/.test(line.trim()));
+                    if (lines.length === 0) return;
+                    const numRows = lines.length;
+                    const numCols = Math.max(...lines.map(line => line.length));
+                    const newGridData = Array.from({ length: numRows }, () => Array(numCols).fill(FLOOR));
+                    for (let r = 0; r < numRows; r++) {
+                        for (let c = 0; c < lines[r].length; c++) newGridData[r][c] = lines[r][c];
+                    }
+                    mapsData.push(newGridData);
+                    mapsHistory.push([]);
+                });
+                if (mapsData.length === 0) addNewMap();
+                else {
+                    currentMapIndex = 0;
+                    updateMapSelect();
+                    loadMapForEditing(0);
+                }
+                statusMessage.textContent = `총 ${mapsData.length}개의 맵을 불러왔습니다.`;
+            };
+            reader.readAsText(file);
+        }
+        
+        function preRenderSVGs(tileSize) {
+            if (tileSize <= 0) return Promise.resolve();
+            isSVGRendered = false;
+            const renderingPromises = Object.keys(SVG_ASSETS).map(key => {
+                return new Promise(resolve => {
+                    const svgString = SVG_ASSETS[key];
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = tileSize;
+                    tempCanvas.height = tileSize;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    const img = new Image();
+                    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(svgBlob);
+                    img.onload = () => {
+                        tempCtx.drawImage(img, 0, 0, tileSize, tileSize);
+                        preRenderedSVGs[key] = tempCanvas;
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    };
+                    img.onerror = () => { console.error(`SVG 렌더링 실패: ${key}`); resolve(); };
+                    img.src = url;
+                });
+            });
+            return Promise.all(renderingPromises).then(() => { isSVGRendered = true; });
+        }
+
+        async function exportAsImage() {
+            if (!isSVGRendered && Object.keys(loadedAssets.images).length === 0) { statusMessage.textContent = "이미지 에셋 준비 중입니다."; return; }
+            const gridData = mapsData[currentMapIndex];
+            if (!gridData || gridData.length === 0) { statusMessage.textContent = "내보낼 맵 데이터가 없습니다."; return; }
+            const numRows = gridData.length;
+            const numCols = gridData[0].length;
+            const EXPORT_TILE_SIZE = 48;
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = numCols * EXPORT_TILE_SIZE;
+            exportCanvas.height = numRows * EXPORT_TILE_SIZE;
+            const exportCtx = exportCanvas.getContext('2d');
+            for (let r = 0; r < numRows; r++) {
+                for (let c = 0; c < numCols; c++) {
+                    const char = gridData[r][c];
+                    const drawExportElement = (element) => {
+                         const imageKey = ELEMENT_IMAGE_MAP[element];
+                         let imageToDraw = imageKey ? loadedAssets.images[imageKey] : null;
+                         if (imageToDraw) { exportCtx.drawImage(imageToDraw, c * EXPORT_TILE_SIZE, r * EXPORT_TILE_SIZE, EXPORT_TILE_SIZE, EXPORT_TILE_SIZE); } 
+                         else if (preRenderedSVGs[element]) { exportCtx.drawImage(preRenderedSVGs[element], c * EXPORT_TILE_SIZE, r * EXPORT_TILE_SIZE, EXPORT_TILE_SIZE, EXPORT_TILE_SIZE); }
+                    }
+                    drawExportElement(FLOOR);
+                    if (char === GOAL || char === PLAYER_ON_GOAL || char === BOX_ON_GOAL) { drawExportElement(GOAL); }
+                    if (char !== FLOOR) { drawExportElement(char); }
+                }
+            }
+            const link = document.createElement('a');
+            link.download = `sokoban_map_${currentMapIndex + 1}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+            statusMessage.textContent = `맵 ${currentMapIndex + 1}이(가) 이미지로 저장되었습니다.`;
+        }
+
+        // --- 이벤트 리스너 설정 ---
+        addMapBtn.addEventListener('click', addNewMap);
+        deleteMapBtn.addEventListener('click', () => {
+            if (mapsData.length <= 1) { statusMessage.textContent = '마지막 맵은 삭제할 수 없습니다.'; return; }
+            if (confirm(`'맵 ${currentMapIndex + 1}'을(를) 정말로 삭제하시겠습니까?`)) {
+                mapsData.splice(currentMapIndex, 1);
+                mapsHistory.splice(currentMapIndex, 1);
+                currentMapIndex = Math.max(0, currentMapIndex - 1);
+                updateMapSelect();
+                loadMapForEditing(currentMapIndex);
+            }
+        });
+        mapSelect.addEventListener('change', (e) => loadMapForEditing(parseInt(e.target.value, 10)));
+        resizeBtn.addEventListener('click', () => {
+            saveState();
+            const newRows = parseInt(rowsInput.value, 10), newCols = parseInt(colsInput.value, 10);
+            const oldGrid = mapsData[currentMapIndex], oldRows = oldGrid.length, oldCols = oldRows > 0 ? oldGrid[0].length : 0;
+            const newGrid = Array.from({ length: newRows }, () => Array(newCols).fill(FLOOR));
+            for (let r = 0; r < Math.min(newRows, oldRows); r++) {
+                for (let c = 0; c < Math.min(newCols, oldCols); c++) newGrid[r][c] = oldGrid[r][c];
+            }
+            mapsData[currentMapIndex] = newGrid;
+            loadMapForEditing(currentMapIndex);
+            statusMessage.textContent = `맵 ${currentMapIndex + 1}의 크기가 ${newRows}x${newCols}(으)로 변경되었습니다.`;
+        });
+        clearBtn.addEventListener('click', () => {
+            if (confirm(`'맵 ${currentMapIndex + 1}'을(를) 정말로 초기화하시겠습니까?`)) {
+                saveState();
+                const gridData = mapsData[currentMapIndex], numRows = gridData.length, numCols = numRows > 0 ? gridData[0].length : 0;
+                mapsData[currentMapIndex] = Array.from({ length: numRows }, () => Array(numCols).fill(FLOOR));
+                drawGrid();
+                statusMessage.textContent = `맵 ${currentMapIndex + 1}이(가) 초기화되었습니다.`;
+            }
+        });
+        exportBtn.addEventListener('click', exportAllMaps);
+        importBtn.addEventListener('click', () => importFileInput.click());
+        importFileInput.addEventListener('change', (e) => e.target.files[0] && importMaps(e.target.files[0]));
+        palette.addEventListener('change', (e) => e.target.name === 'tool' && (selectedTool = e.target.value));
+        exportImageBtn.addEventListener('click', exportAsImage);
+        
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+        }
+        canvas.addEventListener('mousedown', (e) => {
+            saveState();
+            isMouseDown = true;
+            const pos = getMousePos(e);
+            const c = Math.floor(pos.x / TILE_SIZE);
+            const r = Math.floor(pos.y / TILE_SIZE);
+            handleCellPaint(r, c);
+            e.preventDefault();
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                const pos = getMousePos(e);
+                const c = Math.floor(pos.x / TILE_SIZE);
+                const r = Math.floor(pos.y / TILE_SIZE);
+                handleCellPaint(r, c);
+            }
+        });
+        document.body.addEventListener('mouseup', () => isMouseDown = false);
+        document.body.addEventListener('mouseleave', () => isMouseDown = false);
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undo();
+            }
+        });
+
+        // --- 초기화 ---
+        async function init() {
+            statusMessage.textContent = "에셋 로딩 중...";
+            await Promise.all([ preRenderSVGs(TILE_SIZE), loadAllAssets() ]);
+            addNewMap();
+            statusMessage.textContent = "에디터가 준비되었습니다. 맵 제작을 시작하세요!";
+        }
+        init();
+    </script>
+</body>
+</html>
