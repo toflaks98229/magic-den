@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  
   <url>
-    <loc>https://<사용자이름>.github.io/<저장소이름>/</loc>
-    <lastmod>2025-09-04</lastmod>
+    <loc>https://toflaks98229.github.io/magic-den/</loc>
+    <lastmod>2024-05-16</lastmod>
+    <priority>1.0</priority>
   </url>
+  
   <url>
-    <loc>https://<사용자이름>.github.io/<저장소이름>/editor.html</loc>
-    <lastmod>2025-09-04</lastmod>
+    <loc>https://toflaks98229.github.io/magic-den/editor.html</loc>
+    <lastmod>2024-05-16</lastmod>
+    <priority>0.8</priority>
   </url>
+
 </urlset>
